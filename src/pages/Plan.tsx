@@ -11,7 +11,7 @@ import { useSelectedDate } from '../App';
 import { allAlive, db, remove, save, useLive, useSettings } from '../lib/db';
 import { num } from '../lib/calc';
 import { addDays, dateRange, fmtClock, fmtDay, fmtDuration, relativeDay, today, weekStartOf, weekday, WEEKDAYS } from '../lib/date';
-import { downloadFile } from '../lib/sync';
+import { downloadFile } from '../lib/backup';
 import { habitDueOn } from '../lib/summary';
 import { useTimers } from '../lib/timers';
 import { plansOn, removePlanOn, startFromRoutine, togglePlanDone } from '../lib/workouts';

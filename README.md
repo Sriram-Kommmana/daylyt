@@ -2,7 +2,9 @@
 
 A private, installable tracker for your whole day: workouts, food, water, sleep, steps, habits, tasks and focus, with a weekly planner, streaks and statistics.
 
-There is no server and no account. Your data stays in your browser, and the app works offline once it has loaded.
+**Live at https://sriram-kommmana.github.io/daylyt/**
+
+You sign in, and your data is saved to a database, so clearing your browser or changing phones never loses it. A copy stays on the device, which keeps the app fast and lets it work offline.
 
 ## What it does
 
@@ -17,11 +19,14 @@ There is no server and no account. Your data stays in your browser, and the app 
 
 ## Hosting it free
 
-Daylyt is a static site, so any free static host can serve it, and there's nothing to pay for or keep running.
+Daylyt has two free parts, and there's no server to pay for or keep running:
 
-### GitHub Pages (recommended)
+- **The app** is a static site on GitHub Pages.
+- **The data** is in Cloud Firestore, on Firebase's free Spark plan. It needs no card, doesn't pause when idle, and stops at its daily limits rather than charging. It allows 1 GiB of data, 50,000 reads and 20,000 writes per day, far more than one person needs.
 
-It's free, and the same account can also hold your sync data. The workflow in `.github/workflows/deploy.yml` tests, builds and publishes on every push.
+### GitHub Pages
+
+The workflow in `.github/workflows/deploy.yml` tests, builds and publishes on every push.
 
 1. Create a repository named `daylyt` on [github.com/new](https://github.com/new). It must be **public** for free Pages. Your tracking data is never in the repository, only the code.
 2. Push this folder:
@@ -45,9 +50,9 @@ Connect the repository in the Cloudflare dashboard under **Workers & Pages → C
 
 No company can promise a free tier forever, so nothing here depends on one:
 
-- The app is plain files that can move to another static host in minutes.
-- Your data isn't on the host. It's on your device, and optionally in your own gist.
-- **Browsers store data per web address.** If you ever change the address, first use **Settings → Download backup**, then restore it at the new address. Sync also carries your data across.
+- The app is plain files that can move to another static host in minutes. Add the new address to **Authentication → Settings → Authorized domains** in Firebase, and your data is there when you sign in.
+- **Settings → Download backup** saves all your data as a plain file you keep, whatever happens to any service.
+- All sync code goes through one small interface (`Remote` in `src/lib/cloud.ts`), so moving to another database means rewriting one file.
 
 ## Install it on your phone
 
@@ -56,16 +61,16 @@ No company can promise a free tier forever, so nothing here depends on one:
 
 ## Keeping your data safe
 
-Data lives in your browser's storage, and clearing site data erases it. Protect it in either of these ways:
+Every change saves to your account's database within a few seconds. If you clear cookies or lose your phone, sign in again and everything comes back. Your phone and laptop stay in step, and if two devices change the same entry, the most recent change wins.
 
-- **Sync (recommended):** see **Settings → Sync between devices**. It stores everything in a secret gist on your own GitHub account and keeps your phone and laptop in step. If two devices change the same entry, the most recent change wins.
+- **Offline:** changes wait on the device and save when you reconnect. A cloud icon appears on Today while they're waiting. Clearing browser data before they've saved loses those changes, and only those.
+- **Who can see it:** the rules in `firestore.rules` only let your signed-in account read or write your data. It isn't end-to-end encrypted, so Google, which runs the database, could technically access it.
 - **Backups:** **Settings → Download backup** saves one JSON file, which you can restore at any time.
-
-A secret gist isn't encrypted and can be opened by anyone who has its link. Treat it as private but not as a vault.
 
 ## Known limits
 
 - **Steps aren't counted automatically.** Web apps can't read your phone's step counter or Google Fit / Apple Health in the background, so you type in the daily total.
+- **You need a connection to sign in** the first time on a device. After that, the app opens offline.
 - **No background reminders.** A site without a server can't reliably send notifications when it's closed. Use **Plan → calendar button** to export your plan, and your calendar will remind you.
 - **Barcode scanning** uses the camera on Chrome for Android. Other browsers can type the barcode number.
 - **Calories are estimates.** Burn is calculated from activity MET values, and home-cooked dishes vary. They're good for spotting trends, not for exact accounting.
@@ -85,9 +90,15 @@ npm test
 npm run build
 ```
 
-Built with React, TypeScript, Vite, Dexie (IndexedDB) and vite-plugin-pwa. Charts are hand-drawn SVG.
+To change the database rules, edit `firestore.rules`, then:
 
-- `src/lib`: logic with no UI (calculations, daily summaries, streaks, search, sync)
+```bash
+npx firebase-tools deploy --only firestore:rules
+```
+
+Built with React, TypeScript, Vite, Firebase (Auth and Firestore), Dexie (IndexedDB) and vite-plugin-pwa. Charts are hand-drawn SVG.
+
+- `src/lib`: logic with no UI (calculations, daily summaries, streaks, search, `cloud.ts` for sync, `firebase.ts` for the database)
 - `src/pages` and `src/components`: the interface
 - `src/data`: curated foods, extra activities, training programs
 - `scripts`: rebuilds `public/data` from the source datasets and generates the icons

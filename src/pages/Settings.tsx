@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, Download, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { ChevronLeft, Cloud, CloudOff, Download, LogOut, RefreshCw, Trash2, Upload } from 'lucide-react';
 import { Field, NumInput, Segmented, useToast } from '../components/ui';
-import { db, save, TABLES, useSettings } from '../lib/db';
+import { db, save, useSettings } from '../lib/db';
 import { ACTIVITY_LEVELS, fromKg, suggestGoals, tdee, toKg } from '../lib/calc';
-import { connectSync, disconnectSync, downloadFile, exportSnapshot, importSnapshot, lastSync, syncConfigured, syncNow, validateSnapshot } from '../lib/sync';
+import { downloadFile, exportSnapshot, importSnapshot, validateSnapshot } from '../lib/backup';
+import { deleteEverything, forgetDevice, getSyncStatus, syncNow, useSyncStatus } from '../lib/cloud';
+import { currentEmail, signOut } from '../lib/firebase';
 import type { Goals, GoalType, Settings as S } from '../lib/types';
 
 export function applyTheme(theme: S['theme']) {
@@ -27,7 +29,7 @@ export default function Settings() {
         <Profile s={s} />
         <GoalsSection s={s} />
         <Preferences s={s} />
-        <Sync />
+        <AccountSection />
         <DataSection />
         <About />
       </div>
@@ -119,53 +121,46 @@ function Preferences({ s }: { s: S }) {
   );
 }
 
-function Sync() {
+function AccountSection() {
   const { toast } = useToast();
-  const [token, setToken] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [on, setOn] = useState(syncConfigured());
-  const [last, setLast] = useState(lastSync());
-  const run = async (fn: () => Promise<void>, ok: string) => {
-    setBusy(true);
-    try {
-      await fn();
-      setOn(syncConfigured());
-      setLast(lastSync());
-      setToken('');
-      toast(ok);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Sync failed');
-    } finally {
-      setBusy(false);
-    }
+  const sync = useSyncStatus();
+  const [confirming, setConfirming] = useState(false);
+  const email = currentEmail();
+  const saved = sync.pending === 0 && sync.state !== 'error';
+  const statusText = sync.state === 'syncing' ? 'Saving…'
+    : sync.pending > 0 ? `${sync.pending} change${sync.pending === 1 ? '' : 's'} waiting to save${sync.state === 'offline' ? ' until you are back online' : ''}.`
+    : sync.state === 'error' ? 'The last sync failed. It will try again automatically.'
+    : 'Everything is saved to your account.';
+
+  const leave = async () => {
+    await signOut();
+    await forgetDevice();
   };
   return (
     <section className="card stack">
       <div>
-        <h2>Sync between devices (optional)</h2>
-        <p className="small muted" style={{ marginTop: 3 }}>
-          Your data lives on this device. To use Daylyt on your phone and laptop together, store it in a secret GitHub Gist on your own free GitHub account. The app talks directly to GitHub, with no Daylyt server in between.
-        </p>
+        <h2>Account</h2>
+        <p className="small muted" style={{ marginTop: 3 }}>{email ? `Signed in as ${email}. ` : ''}Your data is stored in your account's database, so clearing your browser or changing phones won't lose it.</p>
       </div>
-      {on ? (
-        <>
-          <div className="small">Connected. {last ? `Last synced ${new Date(last).toLocaleString()}.` : ''}</div>
+      <div className="small row" role="status" style={{ color: saved ? undefined : 'var(--bad)' }}>
+        {saved ? <Cloud size={15} /> : <CloudOff size={15} />} {statusText}
+      </div>
+      <div className="row">
+        <button className="btn grow" disabled={sync.state === 'syncing'} onClick={() => syncNow().then(() => toast('Saved')).catch(() => toast('Could not reach the database'))}><RefreshCw size={14} /> Sync now</button>
+        {!confirming && <button className="btn ghost" onClick={async () => {
+          await syncNow().catch(() => {});
+          if (getSyncStatus().pending > 0) setConfirming(true);
+          else await leave();
+        }}><LogOut size={14} /> Sign out</button>}
+      </div>
+      {confirming && (
+        <div className="stack tight">
+          <p className="small bold">{getSyncStatus().pending} change{getSyncStatus().pending === 1 ? ' has' : 's have'} not reached the database, and will be lost if you sign out now.</p>
           <div className="row">
-            <button className="btn grow" disabled={busy} onClick={() => run(syncNow, 'Synced')}><RefreshCw size={14} /> {busy ? 'Syncing…' : 'Sync now'}</button>
-            <button className="btn ghost" onClick={() => { disconnectSync(); setOn(false); setLast(0); toast('Sync turned off on this device'); }}>Turn off</button>
+            <button className="btn danger grow" onClick={leave}>Sign out anyway</button>
+            <button className="btn grow" onClick={() => setConfirming(false)}>Stay signed in</button>
           </div>
-        </>
-      ) : (
-        <>
-          <ol className="small muted" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 3 }}>
-            <li>On GitHub, create a <a style={{ textDecoration: 'underline' }} href="https://github.com/settings/tokens/new?scopes=gist&description=Daylyt%20sync" target="_blank" rel="noreferrer">personal access token</a> with only the “gist” permission. Set the expiry to “No expiration”.</li>
-            <li>Paste it below. Use the same token on your other devices.</li>
-          </ol>
-          <Field label="GitHub token" hint="Kept only in this browser. Anyone with this device could read it, so don't connect on a shared computer.">
-            <input className="input" type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} />
-          </Field>
-          <button className="btn primary" disabled={!token.trim() || busy} onClick={() => run(() => connectSync(token), 'Sync is on')}>{busy ? 'Connecting…' : 'Connect'}</button>
-        </>
+        </div>
       )}
     </section>
   );
@@ -196,7 +191,7 @@ function DataSection() {
     <section className="card stack">
       <div>
         <h2>Your data</h2>
-        <p className="small muted" style={{ marginTop: 3 }}>Browsers can clear stored data, for example if you clear site data. Keep a backup, or turn on sync above.</p>
+        <p className="small muted" style={{ marginTop: 3 }}>Download a copy whenever you like. It's a plain file that you keep, separate from your account.</p>
       </div>
       <div className="row wrap">
         <button className="btn grow" onClick={async () => { downloadFile(`daylyt-backup-${stamp}.json`, JSON.stringify(await exportSnapshot())); toast('Backup downloaded'); }}><Download size={15} /> Download backup</button>
@@ -218,12 +213,15 @@ function DataSection() {
       }} />
       {confirming ? (
         <div className="stack tight">
-          <p className="small bold">This deletes everything on this device and cannot be undone.</p>
+          <p className="small bold">This permanently deletes all your data, in the database and on every device. It cannot be undone.</p>
           <div className="row">
             <button className="btn danger grow" onClick={async () => {
-              disconnectSync();
-              await Promise.all(TABLES.map((t) => db[t].clear()));
-              location.reload();
+              try {
+                await deleteEverything();
+                location.reload();
+              } catch {
+                toast('Could not reach the database, so nothing was deleted. Check your connection.');
+              }
             }}>Delete everything</button>
             <button className="btn grow" onClick={() => setConfirming(false)}>Keep my data</button>
           </div>

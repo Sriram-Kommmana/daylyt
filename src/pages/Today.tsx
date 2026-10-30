@@ -1,10 +1,11 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  ChevronLeft, ChevronRight, Droplet, Dumbbell, Flame, Footprints, ListTodo, Moon, NotebookPen, Plus, Scale, Settings as Gear, Target, Timer, Utensils,
+  ChevronLeft, ChevronRight, CloudOff, Droplet, Dumbbell, Flame, Footprints, ListTodo, Moon, NotebookPen, Plus, Scale, Settings as Gear, Target, Timer, Utensils,
 } from 'lucide-react';
 import { CheckBox, DayRing, Field, METRIC_COLORS, Progress, useToast } from '../components/ui';
 import { useSelectedDate } from '../App';
+import { useSyncStatus } from '../lib/cloud';
 import { allAlive, db, onDate, remove, save, useLive, useSettings, useStreakDays, useSummaries } from '../lib/db';
 import { fmtWeight, num } from '../lib/calc';
 import { addDays, dateRange, fmtDay, fmtDuration, relativeDay, sleepMinutes, today, weekStartOf, weekday, WEEKDAYS } from '../lib/date';
@@ -27,6 +28,7 @@ export default function Today() {
   const settings = useSettings();
   const [date, setDate] = useSelectedDate();
   const [sheet, setSheet] = useState<'water' | 'sleep' | 'steps' | 'weight' | null>(null);
+  const sync = useSyncStatus();
   const { toast } = useToast();
   const now = today();
   const weekStart = settings?.weekStart ?? 1;
@@ -56,6 +58,9 @@ export default function Today() {
           <h1>{relativeDay(date)}</h1>
         </div>
         {date !== now && <button className="btn sm" onClick={() => setDate(now)}>Back to today</button>}
+        {sync.pending > 0 && (sync.state === 'offline' || sync.state === 'error') && (
+          <Link to="/settings" className="icon-btn" aria-label={`${sync.pending} changes waiting to save`} title="Changes are waiting to save to your account"><CloudOff size={19} /></Link>
+        )}
         <Link to="/settings" className="icon-btn" aria-label="Settings"><Gear size={19} /></Link>
       </div>
 

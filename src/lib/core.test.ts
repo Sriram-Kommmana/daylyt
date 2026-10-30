@@ -8,7 +8,7 @@ import { bmr, exerciseKcal, oneRepMax, stepsToKcal, suggestGoals, workoutKcal, w
 import { addDays, dateRange, parse, sleepMinutes, toISO, weekStartOf } from './date';
 import { index, search } from './search';
 import { bestStreak, dayScore, emptyDay, foodProgress, insights, pillars, planOccursOn, streakOf, summarize, weeklyWorkoutStreak, type RangeRows } from './summary';
-import { mergeRows, validateSnapshot } from './sync';
+import { mergeRows, validateSnapshot } from './backup';
 import type { DaySummary, Exercise, Goals, Plan, Workout, WorkoutExercise } from './types';
 
 const goals: Goals = { kcal: 2000, protein: 120, carbs: 200, fat: 60, fiber: 28, waterMl: 2500, sleepMin: 480, steps: 8000, focusMin: 60, workoutsPerWeek: 3 };

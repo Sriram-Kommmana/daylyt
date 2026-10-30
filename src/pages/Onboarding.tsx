@@ -1,18 +1,15 @@
 import { useState } from 'react';
 import { Field, NumInput, Segmented } from '../components/ui';
-import { db, defaultSettings, save } from '../lib/db';
+import { defaultSettings, save } from '../lib/db';
 import { ACTIVITY_LEVELS, fromKg, suggestGoals, toKg } from '../lib/calc';
-import { connectSync, importSnapshot, validateSnapshot } from '../lib/sync';
+import { importSnapshot, validateSnapshot } from '../lib/backup';
 import type { GoalType, Settings } from '../lib/types';
 
 export default function Onboarding() {
   const [step, setStep] = useState(0);
   const [s, setS] = useState<Settings>(defaultSettings());
   const [error, setError] = useState('');
-  const [linking, setLinking] = useState(false);
-  const [token, setToken] = useState('');
-  const [busy, setBusy] = useState(false);
-  const set =(p: Partial<Settings>) => setS({ ...s, ...p });
+  const set = (p: Partial<Settings>) => setS({ ...s, ...p });
   const goals = suggestGoals(s);
   const unit = s.weightUnit;
 
@@ -28,8 +25,8 @@ export default function Onboarding() {
       {step === 0 && (
         <>
           <div className="stack tight">
-            <h1 style={{ fontSize: 30 }}>Your whole day, in one place.</h1>
-            <p className="muted">Workouts, food, water, sleep, steps, habits and plans. Private by design: everything stays on your device, with no account and nothing to pay.</p>
+            <h1 style={{ fontSize: 30 }}>Welcome to Daylyt.</h1>
+            <p className="muted">A few details first, so your calorie and protein targets fit you.</p>
           </div>
           <Field label="What should we call you? (optional)"><input className="input" value={s.name} onChange={(e) => set({ name: e.target.value })} /></Field>
           <Field label="Sex" hint="Only used to estimate how many calories you burn">
@@ -56,30 +53,7 @@ export default function Onboarding() {
               }
             }} />
           </label>
-          {!linking
-            ? <button className="btn ghost block" onClick={() => setLinking(true)}>I already use Daylyt on another device</button>
-            : (
-              <form className="stack tight" onSubmit={async (e) => {
-                e.preventDefault();
-                setError('');
-                setBusy(true);
-                try {
-                  await connectSync(token);
-                  // Reaching this line with no profile means the gist was empty, so carry on with setup.
-                  if (!(await db.settings.get('me'))) setError('Connected, but there is no data yet. Finish setup here first.');
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : 'Could not connect.');
-                } finally {
-                  setBusy(false);
-                }
-              }}>
-                <Field label="Your GitHub sync token" hint="The same one you created for sync on your other device">
-                  <input className="input" type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} />
-                </Field>
-                <button className="btn" disabled={!token.trim() || busy}>{busy ? 'Connecting…' : 'Bring my data here'}</button>
-              </form>
-            )}
-          {error && <p className="small" role="alert" style={{ color: 'var(--bad)' }}>{error}</p>}
+          {error &&<p className="small" role="alert" style={{ color: 'var(--bad)' }}>{error}</p>}
         </>
       )}
 

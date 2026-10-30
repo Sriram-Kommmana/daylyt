@@ -26,6 +26,9 @@ class DaylytDB extends Dexie {
   focus!: Table<FocusLog, string>;
   plans!: Table<Plan, string>;
   journal!: Table<JournalEntry, string>;
+  /** Rows changed here that the database hasn't confirmed yet. */
+  outbox!: Table<OutboxItem, string>;
+  meta!: Table<{ key: string; value: unknown }, string>;
 
   constructor() {
     super('daylyt');
@@ -47,7 +50,14 @@ class DaylytDB extends Dexie {
       plans: 'id,date',
       journal: 'id,date',
     });
+    this.version(2).stores({ outbox: 'key', meta: 'key' });
   }
+}
+
+interface OutboxItem {
+  key: string;
+  table: TableName;
+  id: string;
 }
 
 export const db = new DaylytDB();
@@ -72,17 +82,41 @@ const changed = () => listeners.forEach((fn) => fn());
 // The generic is loose on purpose: each table's row type is enforced at the call site.
 const table = (name: TableName) => db[name] as unknown as Table<Rec, string>;
 
+const outboxKey = (name: TableName, id: string) => `${name}|${id}`;
+
+/** Queues rows for the database. Sign-in uses this to send up what was logged before it. */
+export async function markDirty(name: TableName, ids: string[]) {
+  if (!ids.length) return;
+  await db.outbox.bulkPut(ids.map((id) => ({ key: outboxKey(name, id), table: name, id })));
+  changed();
+}
+
 export async function save<T extends Rec>(name: TableName, row: Omit<T, 'id' | 'updatedAt'> & { id?: string }): Promise<T> {
   const full = { ...row, id: row.id ?? uid(), updatedAt: Date.now() } as unknown as T;
-  await table(name).put(full);
+  // One transaction, so a crash can't leave a saved row that never gets queued.
+  await db.transaction('rw', table(name), db.outbox, async () => {
+    await table(name).put(full);
+    await db.outbox.put({ key: outboxKey(name, full.id), table: name, id: full.id });
+  });
   changed();
   return full;
 }
 
-/** Deletes leave a tombstone so the deletion also reaches other synced devices. */
+/** Deletes leave a tombstone so the deletion also reaches the database and other devices. */
 export async function remove(name: TableName, id: string) {
-  await table(name).update(id, { deleted: 1, updatedAt: Date.now() });
+  await db.transaction('rw', table(name), db.outbox, async () => {
+    await table(name).update(id, { deleted: 1, updatedAt: Date.now() });
+    await db.outbox.put({ key: outboxKey(name, id), table: name, id });
+  });
   changed();
+}
+
+export const getMeta = async <T,>(key: string) => (await db.meta.get(key))?.value as T | undefined;
+export const setMeta = (key: string, value: unknown) => db.meta.put({ key, value });
+
+/** Empties this device's copy. It does not touch the database. */
+export async function clearLocal() {
+  await Promise.all([...TABLES.map((t) => db[t].clear()), db.outbox.clear(), db.meta.clear()]);
 }
 
 export const alive = <T extends Rec>(rows: T[]) => rows.filter((r) => !r.deleted);

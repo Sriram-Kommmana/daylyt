@@ -4,8 +4,10 @@ import { CalendarDays, Dumbbell, LineChart, Settings as Gear, Sun, Utensils } fr
 import { ToastProvider } from './components/ui';
 import { useSettings } from './lib/db';
 import { today, fmtClock } from './lib/date';
-import { startAutoSync } from './lib/sync';
+import { hasLocalProfile, prepareAccount, startSync, syncNow } from './lib/cloud';
+import { firestoreRemote, isConfigured, useUser } from './lib/firebase';
 import { TimerProvider, useTimers } from './lib/timers';
+import SignIn from './pages/SignIn';
 import Today from './pages/Today';
 import Train from './pages/Train';
 import Eat from './pages/Eat';
@@ -99,6 +101,58 @@ function ScrollTop() {
   return null;
 }
 
+/** Signed in: gets this device's copy ready, then keeps it in step with the database. */
+function Account({ uid }: { uid: string }) {
+  const [phase, setPhase] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [attempt, setAttempt] = useState(0);
+  const remote = useMemo(() => firestoreRemote(uid), [uid]);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      await prepareAccount(uid);
+      // A returning device opens at once and syncs behind the scenes. A device with no copy must
+      // wait: showing setup before the data arrives could overwrite the real profile.
+      if (await hasLocalProfile()) {
+        if (live) setPhase('ready');
+        return;
+      }
+      try {
+        await syncNow(remote);
+        if (live) setPhase('ready');
+      } catch {
+        if (live) setPhase('failed');
+      }
+    })();
+    return () => { live = false; };
+  }, [uid, remote, attempt]);
+
+  useEffect(() => (phase === 'ready' ? startSync(remote) : undefined), [phase, remote]);
+
+  if (phase === 'failed') {
+    return (
+      <main className="onboard">
+        <h1>Couldn't reach your data</h1>
+        <p className="muted">Check your connection and try again. Your data is safe in the database.</p>
+        <button className="btn primary block" onClick={() => { setPhase('loading'); setAttempt(attempt + 1); }}>Try again</button>
+      </main>
+    );
+  }
+  if (phase === 'loading') {
+    return <main className="onboard"><img className="brand-mark" src="icons/icon.svg" alt="" /><p className="muted" role="status">Loading your data…</p></main>;
+  }
+  return <Shell />;
+}
+
+function Gate() {
+  const user = useUser();
+  if (!isConfigured) return <main className="onboard"><h1>Daylyt isn't connected to its database yet.</h1></main>;
+  if (user === undefined) return null;
+  if (!user) return <SignIn />;
+  // The key restarts everything if a different account signs in.
+  return <Account key={user.uid} uid={user.uid} />;
+}
+
 function Shell() {
   const settings = useSettings();
   const [ready, setReady] = useState(false);
@@ -109,7 +163,6 @@ function Shell() {
     return () => clearTimeout(id);
   }, []);
   useEffect(() => { if (settings) applyTheme(settings.theme); }, [settings?.theme]); // eslint-disable-line
-  useEffect(() => startAutoSync(), []);
 
   if (!settings) {
     return ready ? <Onboarding /> : null;
@@ -149,7 +202,7 @@ export default function App() {
       <ToastProvider>
         <TimerProvider>
           <DateProvider>
-            <Shell />
+            <Gate />
           </DateProvider>
         </TimerProvider>
       </ToastProvider>
