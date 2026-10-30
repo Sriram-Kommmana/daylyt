@@ -1,0 +1,161 @@
+import type { Exercise, ExerciseKind } from '../lib/types';
+
+// The main database (free-exercise-db) is gym-focused. These fill its gaps: cardio at specific
+// intensities, sports, yoga, everyday activity, and popular bodyweight moves. MET values follow
+// the Compendium of Physical Activities and are estimates.
+
+type Row = [name: string, category: string, kind: ExerciseKind, met: number, muscles: string, equipment?: string, aliases?: string];
+
+const ROWS: Row[] = [
+  // Walking & running
+  ['Walking, slow', 'cardio', 'cardio', 2.8, 'quadriceps calves', 'body only', 'stroll easy walk'],
+  ['Walking, moderate', 'cardio', 'cardio', 3.5, 'quadriceps calves', 'body only', 'walk'],
+  ['Walking, brisk', 'cardio', 'cardio', 4.3, 'quadriceps calves', 'body only', 'fast walk power walk'],
+  ['Walking, uphill or incline', 'cardio', 'cardio', 6, 'quadriceps glutes calves', 'body only', 'incline treadmill'],
+  ['Hiking', 'cardio', 'cardio', 6, 'quadriceps glutes calves', 'body only', 'trek'],
+  ['Trekking with backpack', 'cardio', 'cardio', 7.3, 'quadriceps glutes calves', 'other', 'hike rucking'],
+  ['Stair climbing', 'cardio', 'cardio', 8.8, 'quadriceps glutes calves', 'body only', 'stairs steps'],
+  ['Jogging', 'cardio', 'cardio', 7, 'quadriceps hamstrings calves', 'body only', 'run'],
+  ['Running, 8 km/h', 'cardio', 'cardio', 8.3, 'quadriceps hamstrings calves', 'body only', 'run'],
+  ['Running, 10 km/h', 'cardio', 'cardio', 9.8, 'quadriceps hamstrings calves', 'body only', 'run'],
+  ['Running, 12 km/h', 'cardio', 'cardio', 11.5, 'quadriceps hamstrings calves', 'body only', 'run'],
+  ['Running, 15 km/h', 'cardio', 'cardio', 14, 'quadriceps hamstrings calves', 'body only', 'run fast'],
+  ['Sprints or interval running', 'cardio', 'cardio', 12, 'quadriceps hamstrings glutes', 'body only', 'hiit run'],
+  // Cycling & machines
+  ['Cycling, easy', 'cardio', 'cardio', 4, 'quadriceps calves', 'other', 'bicycle bike'],
+  ['Cycling, moderate', 'cardio', 'cardio', 8, 'quadriceps calves', 'other', 'bicycle bike'],
+  ['Cycling, fast', 'cardio', 'cardio', 10, 'quadriceps calves', 'other', 'bicycle bike'],
+  ['Spin class', 'cardio', 'cardio', 8.5, 'quadriceps calves', 'machine', 'indoor cycling'],
+  ['Rowing machine, moderate', 'cardio', 'cardio', 7, 'lats quadriceps', 'machine', 'erg'],
+  ['Rowing machine, hard', 'cardio', 'cardio', 8.5, 'lats quadriceps', 'machine', 'erg'],
+  ['Battle ropes', 'cardio', 'cardio', 8, 'shoulders abdominals', 'other', 'rope waves'],
+  // Skipping & classes
+  ['Skipping, moderate', 'cardio', 'cardio', 9, 'calves shoulders', 'other', 'jump rope rope jumping'],
+  ['Skipping, fast', 'cardio', 'cardio', 11.8, 'calves shoulders', 'other', 'jump rope rope jumping'],
+  ['HIIT workout', 'cardio', 'cardio', 8, 'quadriceps abdominals', 'body only', 'circuit tabata'],
+  ['Circuit training', 'cardio', 'cardio', 7, 'quadriceps abdominals', 'other', 'crossfit'],
+  ['Aerobics', 'cardio', 'cardio', 7.3, 'quadriceps', 'body only', 'step aerobics'],
+  ['Zumba', 'cardio', 'cardio', 6.5, 'quadriceps glutes', 'body only', 'dance fitness'],
+  ['Dancing', 'cardio', 'cardio', 5, 'quadriceps glutes', 'body only', 'dance'],
+  ['Bhangra', 'cardio', 'cardio', 6.5, 'quadriceps shoulders', 'body only', 'dance'],
+  ['Garba or Dandiya', 'cardio', 'cardio', 5.5, 'quadriceps calves', 'body only', 'dance'],
+  // Swimming
+  ['Swimming, easy', 'cardio', 'cardio', 6, 'lats shoulders', 'other', 'swim'],
+  ['Swimming laps, moderate', 'cardio', 'cardio', 5.8, 'lats shoulders', 'other', 'swim'],
+  ['Swimming laps, hard', 'cardio', 'cardio', 9.8, 'lats shoulders', 'other', 'swim freestyle'],
+  // Sports
+  ['Badminton', 'sport', 'cardio', 5.5, 'shoulders quadriceps', 'other'],
+  ['Badminton, competitive', 'sport', 'cardio', 7, 'shoulders quadriceps', 'other'],
+  ['Cricket', 'sport', 'cardio', 4.8, 'shoulders quadriceps', 'other', 'batting bowling'],
+  ['Cricket, fast bowling practice', 'sport', 'cardio', 6.1, 'shoulders quadriceps', 'other'],
+  ['Football', 'sport', 'cardio', 7, 'quadriceps hamstrings calves', 'other', 'soccer'],
+  ['Football, competitive', 'sport', 'cardio', 10, 'quadriceps hamstrings calves', 'other', 'soccer match'],
+  ['Basketball', 'sport', 'cardio', 6.5, 'quadriceps calves', 'other'],
+  ['Basketball, game', 'sport', 'cardio', 8, 'quadriceps calves', 'other'],
+  ['Tennis, singles', 'sport', 'cardio', 8, 'shoulders quadriceps', 'other'],
+  ['Tennis, doubles', 'sport', 'cardio', 6, 'shoulders quadriceps', 'other'],
+  ['Table tennis', 'sport', 'cardio', 4, 'shoulders', 'other', 'ping pong'],
+  ['Volleyball', 'sport', 'cardio', 4, 'shoulders quadriceps', 'other'],
+  ['Kabaddi', 'sport', 'cardio', 6.5, 'quadriceps abdominals', 'body only'],
+  ['Kho kho', 'sport', 'cardio', 6.5, 'quadriceps calves', 'body only'],
+  ['Hockey', 'sport', 'cardio', 7.8, 'quadriceps hamstrings', 'other'],
+  ['Squash', 'sport', 'cardio', 10, 'quadriceps shoulders', 'other'],
+  ['Boxing, heavy bag', 'sport', 'cardio', 5.5, 'shoulders abdominals', 'other', 'punching'],
+  ['Boxing, sparring', 'sport', 'cardio', 7.8, 'shoulders abdominals', 'other'],
+  ['Martial arts', 'sport', 'cardio', 7.5, 'quadriceps abdominals', 'body only', 'karate taekwondo judo kickboxing mma'],
+  ['Wrestling', 'sport', 'cardio', 6, 'quadriceps lats', 'body only', 'kushti'],
+  ['Rock climbing', 'sport', 'cardio', 7.3, 'lats forearms', 'other', 'bouldering'],
+  ['Skating', 'sport', 'cardio', 7, 'quadriceps glutes', 'other', 'roller'],
+  ['Skateboarding', 'sport', 'cardio', 5, 'quadriceps calves', 'other'],
+  ['Golf, walking', 'sport', 'cardio', 4.8, 'shoulders', 'other'],
+  ['Frisbee', 'sport', 'cardio', 4, 'shoulders quadriceps', 'other', 'ultimate'],
+  ['Surfing', 'sport', 'cardio', 5, 'shoulders lats', 'other'],
+  ['Kayaking', 'sport', 'cardio', 5, 'lats shoulders', 'other', 'canoe paddling'],
+  ['Horse riding', 'sport', 'cardio', 5.5, 'adductors', 'other'],
+  // Yoga & mobility
+  ['Hatha yoga', 'yoga', 'time', 2.5, 'abdominals hamstrings', 'body only', 'yoga asana'],
+  ['Vinyasa or power yoga', 'yoga', 'time', 4, 'abdominals shoulders', 'body only', 'flow yoga'],
+  ['Ashtanga yoga', 'yoga', 'time', 4.5, 'abdominals shoulders', 'body only', 'yoga'],
+  ['Surya Namaskar', 'yoga', 'reps', 4, 'abdominals shoulders quadriceps', 'body only', 'sun salutation suryanamaskar'],
+  ['Pranayama', 'yoga', 'time', 1.5, 'abdominals', 'body only', 'breathing kapalbhati anulom vilom'],
+  ['Meditation', 'yoga', 'time', 1.3, 'neck', 'body only', 'mindfulness'],
+  ['Pilates', 'yoga', 'time', 3, 'abdominals glutes', 'body only'],
+  ['Tai chi', 'yoga', 'time', 3, 'quadriceps', 'body only'],
+  ['Stretching routine', 'stretching', 'time', 2.3, 'hamstrings', 'body only', 'mobility flexibility cooldown'],
+  ['Foam rolling session', 'stretching', 'time', 2, 'hamstrings', 'foam roll', 'recovery'],
+  // Everyday activity
+  ['House cleaning', 'activity', 'cardio', 3.3, 'quadriceps', 'other', 'chores sweeping mopping'],
+  ['Gardening', 'activity', 'cardio', 3.8, 'lower back', 'other'],
+  ['Carrying heavy loads', 'activity', 'cardio', 5, 'traps forearms', 'other', 'moving shifting'],
+  ['Playing with kids', 'activity', 'cardio', 4, 'quadriceps', 'other'],
+  // Bodyweight strength
+  ['Burpees', 'plyometrics', 'reps', 8, 'quadriceps chest', 'body only'],
+  ['Jumping jacks', 'plyometrics', 'reps', 7.7, 'calves shoulders', 'body only', 'star jumps'],
+  ['High knees', 'plyometrics', 'time', 8, 'quadriceps', 'body only'],
+  ['Butt kicks', 'plyometrics', 'time', 8, 'hamstrings', 'body only'],
+  ['Squat jumps', 'plyometrics', 'reps', 8, 'quadriceps glutes', 'body only'],
+  ['Box jumps', 'plyometrics', 'reps', 8, 'quadriceps glutes', 'other'],
+  ['Hindu push-up (Dand)', 'strength', 'reps', 6, 'chest shoulders triceps', 'body only', 'dand dands'],
+  ['Hindu squat (Baithak)', 'strength', 'reps', 6, 'quadriceps calves', 'body only', 'baithak baithaks'],
+  ['Diamond push-up', 'strength', 'reps', 5, 'triceps chest', 'body only'],
+  ['Wide push-up', 'strength', 'reps', 5, 'chest', 'body only'],
+  ['Knee push-up', 'strength', 'reps', 4, 'chest triceps', 'body only'],
+  ['Pike push-up', 'strength', 'reps', 5, 'shoulders triceps', 'body only'],
+  ['Archer push-up', 'strength', 'reps', 6, 'chest', 'body only'],
+  ['One-arm push-up', 'strength', 'reps', 6, 'chest', 'body only'],
+  ['Pseudo planche push-up', 'strength', 'reps', 6, 'shoulders chest', 'body only'],
+  ['Muscle-up', 'strength', 'reps', 7, 'lats triceps', 'other'],
+  ['Australian pull-up', 'strength', 'reps', 5, 'lats biceps', 'other', 'inverted row'],
+  ['Negative pull-up', 'strength', 'reps', 5, 'lats biceps', 'other'],
+  ['Bench dips', 'strength', 'reps', 4, 'triceps', 'body only'],
+  ['Pistol squat', 'strength', 'reps', 6, 'quadriceps glutes', 'body only'],
+  ['Sumo squat', 'strength', 'reps', 5, 'quadriceps adductors', 'body only'],
+  ['Bulgarian split squat', 'strength', 'reps', 6, 'quadriceps glutes', 'dumbbell'],
+  ['Reverse lunge', 'strength', 'reps', 5, 'quadriceps glutes', 'body only'],
+  ['Side lunge', 'strength', 'reps', 5, 'adductors quadriceps', 'body only'],
+  ['Glute bridge', 'strength', 'reps', 3.5, 'glutes hamstrings', 'body only', 'hip raise'],
+  ['Hip thrust', 'strength', 'reps', 5, 'glutes hamstrings', 'barbell'],
+  ['Single-leg glute bridge', 'strength', 'reps', 4, 'glutes', 'body only'],
+  ['Donkey kicks', 'strength', 'reps', 3.5, 'glutes', 'body only'],
+  ['Fire hydrants', 'strength', 'reps', 3.5, 'abductors glutes', 'body only'],
+  ['Calf raises, bodyweight', 'strength', 'reps', 3, 'calves', 'body only'],
+  ['Bird dog', 'strength', 'reps', 3, 'lower back abdominals', 'body only'],
+  ['Dead bug', 'strength', 'reps', 3, 'abdominals', 'body only'],
+  ['Leg raises', 'strength', 'reps', 3.5, 'abdominals', 'body only'],
+  ['Bicycle crunches', 'strength', 'reps', 3.8, 'abdominals', 'body only'],
+  ['Hollow body hold', 'strength', 'time', 3.5, 'abdominals', 'body only'],
+  ['Side plank', 'strength', 'time', 3.5, 'abdominals', 'body only'],
+  ['Wall sit', 'strength', 'time', 3.5, 'quadriceps', 'body only'],
+  ['Dead hang', 'strength', 'time', 3, 'forearms lats', 'other', 'bar hang'],
+  ['L-sit', 'strength', 'time', 4, 'abdominals', 'body only'],
+  ['Handstand hold', 'strength', 'time', 4, 'shoulders', 'body only'],
+  ['Crow pose', 'yoga', 'time', 3, 'shoulders abdominals', 'body only', 'bakasana'],
+  ['Bear crawl', 'strength', 'time', 6, 'shoulders quadriceps', 'body only'],
+  ['Inchworm', 'strength', 'reps', 4, 'hamstrings shoulders', 'body only'],
+  ['Farmer carry', 'strongman', 'time', 6, 'forearms traps', 'dumbbell', 'farmers walk'],
+];
+
+const slug = (name: string) => `x_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/_$/, '')}`;
+
+const squashName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+/** Adds the extras to the main database, dropping any it already has under the same name. */
+export const withExtras = (rows: Exercise[]) => {
+  const seen = new Set(rows.map((e) => squashName(e.name)));
+  return [...rows, ...EXTRA_EXERCISES.filter((e) => !seen.has(squashName(e.name)))];
+};
+
+export const EXTRA_EXERCISES: Exercise[] = ROWS.map(([name, category, kind, met, muscles, equipment, aliases]) => ({
+  id: slug(name),
+  name,
+  category,
+  kind,
+  met,
+  aliases,
+  primary: muscles.split(' ').map((m) => m.replace('_', ' ')),
+  secondary: [],
+  equipment: equipment ?? 'other',
+  level: 'beginner',
+  instructions: [],
+  images: [],
+}));
