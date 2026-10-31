@@ -5,8 +5,10 @@ import '@fontsource-variable/bricolage-grotesque';
 import '@fontsource-variable/figtree';
 import './styles.css';
 import App from './App';
+import { listenForInstall } from './lib/install';
 
 registerSW({ immediate: true });
+listenForInstall();
 
 // Ask the browser not to evict our data under storage pressure. Installed PWAs are usually granted this.
 void navigator.storage?.persist?.();

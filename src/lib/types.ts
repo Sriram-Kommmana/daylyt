@@ -100,11 +100,20 @@ export interface FoodLog extends Rec {
   /** Human-readable amount, e.g. "2 × 1 roti (40 g)". */
   amount: string;
   grams?: number;
+  /** How it was entered, so the same food can start from the same amount next time. */
+  qty?: number;
+  unitKey?: string;
   kcal: number;
   protein: number;
   carbs: number;
   fat: number;
   fiber: number;
+}
+
+/** Foods you often eat together, logged in one tap. */
+export interface SavedMeal extends Rec {
+  name: string;
+  items: Omit<FoodLog, 'id' | 'updatedAt' | 'date' | 'deleted' | 'meal'>[];
 }
 
 export interface WaterLog extends Rec {

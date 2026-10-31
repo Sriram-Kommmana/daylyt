@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, Cloud, CloudOff, Download, LogOut, RefreshCw, Trash2, Upload } from 'lucide-react';
-import { Field, NumInput, Segmented, useToast } from '../components/ui';
+import { Field, LiveText, NumInput, Segmented, useToast } from '../components/ui';
 import { db, save, useSettings } from '../lib/db';
 import { ACTIVITY_LEVELS, fromKg, suggestGoals, tdee, toKg } from '../lib/calc';
 import { downloadFile, exportSnapshot, importSnapshot, validateSnapshot } from '../lib/backup';
 import { deleteEverything, forgetDevice, getSyncStatus, syncNow, useSyncStatus } from '../lib/cloud';
 import { currentEmail, signOut } from '../lib/firebase';
+import { useInstall } from '../lib/install';
 import type { Goals, GoalType, Settings as S } from '../lib/types';
 
 export function applyTheme(theme: S['theme']) {
@@ -30,6 +31,7 @@ export default function Settings() {
         <GoalsSection s={s} />
         <Preferences s={s} />
         <AccountSection />
+        <InstallSection />
         <DataSection />
         <About />
       </div>
@@ -44,7 +46,7 @@ function Profile({ s }: { s: S }) {
   return (
     <section className="card stack">
       <h2>Profile</h2>
-      <Field label="Name"><input className="input" value={s.name} onChange={(e) => put(s, { name: e.target.value })} /></Field>
+      <Field label="Name"><LiveText className="input" value={s.name} onChange={(name) => put(s, { name })} /></Field>
       <div className="grid two">
         <Field label="Sex" hint="Used for the calorie estimate">
           <Segmented value={s.sex} onChange={(sex) => put(s, { sex })} options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]} />
@@ -166,6 +168,22 @@ function AccountSection() {
   );
 }
 
+function InstallSection() {
+  const { canInstall, install, installed } = useInstall();
+  if (installed) return null;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (!canInstall && !ios) return null;
+  return (
+    <section className="card stack">
+      <div>
+        <h2>Install the app</h2>
+        <p className="small muted" style={{ marginTop: 3 }}>{ios ? 'In Safari, tap Share, then Add to Home Screen. Daylyt then opens like a normal app.' : 'Add Daylyt to your home screen so it opens like a normal app.'}</p>
+      </div>
+      {canInstall && <button className="btn primary" onClick={install}><Download size={15} /> Install Daylyt</button>}
+    </section>
+  );
+}
+
 function csv(rows: (string | number | undefined)[][]) {
   return rows.map((r) => r.map((c) => `"${String(c ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
 }
@@ -213,7 +231,7 @@ function DataSection() {
       }} />
       {confirming ? (
         <div className="stack tight">
-          <p className="small bold">This permanently deletes all your data, in the database and on every device. It cannot be undone.</p>
+          <p className="small bold">This permanently deletes all your data from the database and this device. It cannot be undone. Any other device keeps its own copy until you sign out there.</p>
           <div className="row">
             <button className="btn danger grow" onClick={async () => {
               try {

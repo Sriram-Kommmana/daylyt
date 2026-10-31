@@ -12,6 +12,11 @@ export default function Onboarding() {
   const set = (p: Partial<Settings>) => setS({ ...s, ...p });
   const goals = suggestGoals(s);
   const unit = s.weightUnit;
+  const thisYear = new Date().getFullYear();
+  // These drive the calorie target, so a half-typed "20" for a birth year mustn't get through.
+  const problem = s.birthYear < thisYear - 110 || s.birthYear > thisYear - 5 ? 'Enter your full birth year, like 1998.'
+    : s.heightCm < 100 || s.heightCm > 250 ? 'Enter your height in centimetres, between 100 and 250.'
+    : s.weightKg < 25 || s.weightKg > 300 ? 'Enter a realistic weight.' : '';
 
   const finish = async () => {
     await save<Settings>('settings', { ...s, onboarded: true, goals });
@@ -38,7 +43,8 @@ export default function Onboarding() {
             <Field label={`Weight (${unit})`}><NumInput value={+fromKg(s.weightKg, unit).toFixed(1)} onChange={(v) => set({ weightKg: v ? toKg(v, unit) : s.weightKg })} /></Field>
             <Field label="Unit"><Segmented value={unit} onChange={(weightUnit) => set({ weightUnit })} options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]} /></Field>
           </div>
-          <button className="btn primary block" onClick={() => setStep(1)}>Continue</button>
+          {problem && <p className="small" role="alert" style={{ color: 'var(--bad)' }}>{problem}</p>}
+          <button className="btn primary block" disabled={!!problem} onClick={() => setStep(1)}>Continue</button>
           <label className="btn ghost block">
             I have a backup file
             <input type="file" hidden accept="application/json,.json" onChange={async (e) => {

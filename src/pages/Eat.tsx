@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Copy, Globe, Plus, Trash2, Utensils, Zap } from 'lucide-react';
+import { Bookmark, Camera, Copy, Globe, Plus, Trash2, Utensils, Zap } from 'lucide-react';
 import { Empty, Field, NumInput, Progress, SearchBox, Segmented, Sheet, Stepper, useToast } from '../components/ui';
+import { DateSwitch } from '../components/DateSwitch';
 import { useSelectedDate } from '../App';
-import { lookupBarcode, searchPackaged, servingsOf, useFoods } from '../lib/catalog';
+import { lookupBarcode, searchPackaged, useFoods } from '../lib/catalog';
 import { allAlive, db, onDate, remove, save, uid, useLive, useSettings, useSummaries } from '../lib/db';
 import { num } from '../lib/calc';
-import { addDays, nowTime, relativeDay } from '../lib/date';
+import { addDays, nowTime } from '../lib/date';
+import { convertQty, describeAmount, foodFromLog, portionUnits, type PortionUnit } from '../lib/portions';
 import { search } from '../lib/search';
-import type { CustomFood, Food, FoodLog, Meal, Serving } from '../lib/types';
+import type { CustomFood, Food, FoodLog, Meal, SavedMeal } from '../lib/types';
 
 export const MEALS: { key: Meal; label: string }[] = [
   { key: 'breakfast', label: 'Breakfast' }, { key: 'lunch', label: 'Lunch' }, { key: 'dinner', label: 'Dinner' }, { key: 'snack', label: 'Snacks' },
@@ -32,14 +34,15 @@ export const scale = (f: Food, grams: number) => ({
 });
 
 /** Search across custom, curated and USDA foods, with online packaged-food lookup as a fallback. */
-export function FoodPicker({ meal, onClose, onAdd, title }: { meal: Meal; onClose: () => void; onAdd: (d: LogDraft) => void | Promise<void>; title?: string }) {
-  const { idx } = useFoods();
+export function FoodPicker({ meal, onClose, onAdd, title }: { meal: Meal; onClose: () => void; onAdd: (d: LogDraft | LogDraft[]) => void | Promise<void>; title?: string }) {
+  const { idx, all } = useFoods();
   const logs = useLive(() => allAlive(db.foodLogs));
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState<Food>();
+  const [startAt, setStartAt] = useState<{ qty: number; unitKey: string }>();
   const [online, setOnline] = useState<Food[] | null>(null);
   const [onlineState, setOnlineState] = useState<'idle' | 'loading' | 'error'>('idle');
-  const [mode, setMode] = useState<'search' | 'quick' | 'custom'>('search');
+  const [mode, setMode] = useState<'search' | 'meals' | 'quick' | 'custom'>('search');
   const [scanning, setScanning] = useState(false);
   const { toast } = useToast();
 
@@ -90,7 +93,7 @@ export function FoodPicker({ meal, onClose, onAdd, title }: { meal: Meal; onClos
   return (
     <Sheet title={title ?? `Add to ${MEALS.find((m) => m.key === meal)?.label.toLowerCase()}`} onClose={onClose} full>
       <div className="stack">
-        <Segmented value={mode} onChange={setMode} label="How to add food" options={[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick add' }, { value: 'custom', label: 'New food' }]} />
+        <Segmented value={mode} onChange={setMode} label="How to add food" options={[{ value: 'search', label: 'Search' }, { value: 'meals', label: 'My meals' }, { value: 'quick', label: 'Quick add' }, { value: 'custom', label: 'New food' }]} />
         {mode === 'search' && (
           <>
             <div className="row">
@@ -103,6 +106,13 @@ export function FoodPicker({ meal, onClose, onAdd, title }: { meal: Meal; onClos
                 <div className="list">
                   {recents.map((l) => (
                     <button key={l.id} className="item" style={{ padding: '9px 0' }} onClick={async () => {
+                      // Starts from what you had last time, but the amount is still yours to change.
+                      const known = all.find((f) => f.id === l.foodId) ?? foodFromLog(l);
+                      if (known) {
+                        setSelected(known);
+                        setStartAt(l.qty && l.unitKey ? { qty: l.qty, unitKey: l.unitKey } : l.grams ? { qty: Math.round(l.grams), unitKey: 'g' } : undefined);
+                        return;
+                      }
                       const { id: _i, updatedAt: _u, date: _d, deleted: _x, ...rest } = l;
                       await onAdd({ ...rest, meal });
                     }}>
@@ -118,7 +128,7 @@ export function FoodPicker({ meal, onClose, onAdd, title }: { meal: Meal; onClos
             )}
             {q.trim() && (
               <div className="list">
-                {results.map((f) => <FoodRow key={f.id} food={f} onClick={() => setSelected(f)} />)}
+                {results.map((f) => <FoodRow key={f.id} food={f} onClick={() => { setSelected(f); setStartAt(undefined); }} />)}
               </div>
             )}
             {q.trim() && !results.length && <div className="empty small">No match in the built-in foods.</div>}
@@ -139,11 +149,56 @@ export function FoodPicker({ meal, onClose, onAdd, title }: { meal: Meal; onClos
             )}
           </>
         )}
+        {mode === 'meals' && <SavedMeals meal={meal} onAdd={onAdd} />}
         {mode === 'quick' && <QuickAdd meal={meal} onAdd={onAdd} />}
         {mode === 'custom' && <CustomFoodForm initialName={q} onCreated={(f) => { setSelected(f); setMode('search'); }} />}
       </div>
-      {selected && <AmountSheet food={selected} meal={meal} onClose={() => setSelected(undefined)} onAdd={async (d) => { await onAdd(d); setSelected(undefined); }} />}
+      {selected && <AmountSheet key={selected.id} food={selected} meal={meal} initial={startAt} onClose={() => setSelected(undefined)} onAdd={async (d) => { await onAdd(d); setSelected(undefined); }} />}
       {scanning && <BarcodeSheet onClose={() => setScanning(false)} onCode={handleBarcode} />}
+    </Sheet>
+  );
+}
+
+function SavedMeals({ meal, onAdd }: { meal: Meal; onAdd: (d: LogDraft[]) => void | Promise<void> }) {
+  const meals = useLive(() => allAlive(db.savedMeals));
+  if (meals && !meals.length) {
+    return <Empty icon={<Utensils size={26} />} title="No saved meals yet"><p className="small muted" style={{ maxWidth: 320 }}>Log what you usually eat, then tap Save on that meal. Next time it's one tap.</p></Empty>;
+  }
+  return (
+    <div className="list">
+      {(meals ?? []).map((m) => (
+        <div key={m.id} className="item" style={{ padding: '9px 0' }}>
+          <button className="grow" style={{ textAlign: 'left' }} onClick={() => onAdd(m.items.map((i) => ({ ...i, meal })))}>
+            <span className="bold clip" style={{ display: 'block' }}>{m.name}</span>
+            <span className="small muted clip" style={{ display: 'block' }}>{num(m.items.reduce((t, i) => t + i.kcal, 0))} kcal · {m.items.map((i) => i.name).join(', ')}</span>
+          </button>
+          <button className="icon-btn sm" aria-label={`Delete ${m.name}`} onClick={() => remove('savedMeals', m.id)}><Trash2 size={15} /></button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SaveMealSheet({ rows, label, onClose }: { rows: FoodLog[]; label: string; onClose: () => void }) {
+  const { toast } = useToast();
+  const [name, setName] = useState(`My ${label.toLowerCase()}`);
+  return (
+    <Sheet title="Save as a meal" onClose={onClose} footer={
+      <button className="btn primary block" disabled={!name.trim()} onClick={async () => {
+        await save<SavedMeal>('savedMeals', {
+          name: name.trim(),
+          items: rows.map(({ id: _i, updatedAt: _u, date: _d, deleted: _x, meal: _m, ...item }) => item),
+        });
+        toast(`Saved. Find it under Add, then My meals.`);
+        onClose();
+      }}>Save meal</button>
+    }>
+      <div className="stack">
+        <Field label="Name"><input className="input" data-autofocus="" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <ul className="stack tight small">
+          {rows.map((r) => <li key={r.id} className="row between"><span className="clip">{r.name}</span><span className="muted nowrap">{r.amount}</span></li>)}
+        </ul>
+      </div>
     </Sheet>
   );
 }
@@ -164,37 +219,52 @@ function FoodRow({ food, onClick }: { food: Food; onClick: () => void }) {
   );
 }
 
-function AmountSheet({ food, meal, onClose, onAdd }: { food: Food; meal: Meal; onClose: () => void; onAdd: (d: LogDraft) => void | Promise<void> }) {
-  const servings = servingsOf(food);
-  const [serving, setServing] = useState<Serving>(servings[0]);
-  const [qty, setQty] = useState<number | undefined>(1);
+/** Say what you ate in whatever way you measured it: type any amount, pick any unit. */
+function AmountSheet({ food, meal, onClose, onAdd, initial, saveLabel = 'Add' }: {
+  food: Food; meal: Meal; onClose: () => void; onAdd: (d: LogDraft) => void | Promise<void>; initial?: { qty: number; unitKey: string }; saveLabel?: string;
+}) {
+  const units = useMemo(() => portionUnits(food), [food]);
+  const [unit, setUnit] = useState<PortionUnit>(() => units.find((u) => u.key === initial?.unitKey) ?? units[0]);
+  const [qty, setQty] = useState<number | undefined>(initial?.qty ?? units[0].start);
   const [chosenMeal, setMeal] = useState(meal);
-  const grams = serving.grams * (qty ?? 0);
+  const grams = unit.grams * (qty ?? 0);
   const v = scale(food, grams);
-  const isGrams = serving.label === '100 g';
 
   return (
     <Sheet title={food.name} onClose={onClose} footer={
       <button className="btn primary block" disabled={!qty} onClick={() => onAdd({
         meal: chosenMeal, foodId: food.id, name: food.name, grams, ...v,
-        amount: isGrams ? `${Math.round(grams)} g` : `${qty} × ${serving.label}`,
-      })}>Add · {v.kcal} kcal</button>
+        amount: describeAmount(qty!, unit), qty, unitKey: unit.key,
+      })}>{saveLabel} · {v.kcal} kcal</button>
     }>
       <div className="stack">
-        <div className="grid two">
-          <Field label={isGrams ? 'Hundreds of grams' : 'Quantity'}><Stepper value={qty} onChange={setQty} step={isGrams ? 0.5 : 0.5} label="quantity" /></Field>
-          <Field label="Serving">
-            <select className="input" value={serving.label} onChange={(e) => setServing(servings.find((s) => s.label === e.target.value)!)}>
-              {servings.map((s) => <option key={s.label} value={s.label}>{s.label}{s.label !== '100 g' ? ` (${Math.round(s.grams)} g)` : ''}</option>)}
-            </select>
-          </Field>
+        <div className="field">
+          <span className="field-label">How much did you have?</span>
+          <div className="amount-row">
+            <Stepper value={qty} onChange={setQty} step={unit.step} label="amount" autoFocus />
+            <span className="amount-unit clip">{unit.label}</span>
+          </div>
+          <div className="chips" aria-label="Common amounts">
+            {unit.quick.map((n) => <button key={n} type="button" className={`chip${qty === n ? ' on' : ''}`} style={{ textTransform: 'none' }} aria-pressed={qty === n} onClick={() => setQty(n)}>{fractionLabel(n)}</button>)}
+          </div>
         </div>
-        <Field label="Exact grams, if you weighed it">
-          <NumInput value={grams ? Math.round(grams) : undefined} onChange={(g) => { const hundred = servings.find((s) => s.grams === 100) ?? servings[servings.length - 1]; setServing(hundred); setQty(g ? +(g / hundred.grams).toFixed(3) : undefined); }} placeholder="Grams" label="grams" />
-        </Field>
+        <div className="field">
+          <span className="field-label">Measured in</span>
+          <div className="chips wrap" aria-label="Unit">
+            {units.map((u) => (
+              <button key={u.key} type="button" className={`chip${u.key === unit.key ? ' on' : ''}`} style={{ textTransform: 'none' }} aria-pressed={u.key === unit.key} onClick={() => { setQty(convertQty(qty ?? 0, unit, u)); setUnit(u); }}>
+                {u.label}
+              </button>
+            ))}
+          </div>
+          <span className="tiny faint">
+            {unit.key === 'g' ? 'Weighed amount.' : `1 ${unit.label} = ${unit.approx ? 'about ' : ''}${+unit.grams.toFixed(1)} g${unit.approx ? '. This varies by food, so use g if you weighed it.' : ''}`}
+          </span>
+        </div>
         <Field label="Meal">
           <Segmented value={chosenMeal} onChange={setMeal} options={MEALS.map((m) => ({ value: m.key, label: m.label }))} />
         </Field>
+        <div className="small"><span className="bold">{Math.round(grams)} g</span> <span className="muted">is {v.kcal} kcal</span></div>
         <div className="macro-grid center">
           <MacroCell label="Protein" v={v.protein} />
           <MacroCell label="Carbs" v={v.carbs} />
@@ -206,6 +276,8 @@ function AmountSheet({ food, meal, onClose, onAdd }: { food: Food; meal: Meal; o
     </Sheet>
   );
 }
+
+const fractionLabel = (n: number) => ({ 0.25: '¼', 0.5: '½', 0.75: '¾', 1.5: '1½', 2.5: '2½' } as Record<number, string>)[n] ?? String(n);
 
 const MacroCell = ({ label, v }: { label: string; v: number }) => (
   <div><div className="bold">{v} g</div><div className="tiny faint">{label}</div></div>
@@ -321,6 +393,7 @@ export default function Eat() {
   const days = useSummaries(date, date, settings);
   const [adding, setAdding] = useState<Meal>();
   const [editing, setEditing] = useState<FoodLog>();
+  const [savingMeal, setSavingMeal] = useState<{ rows: FoodLog[]; label: string }>();
   const d = days?.get(date);
 
   const totals = useMemo(() => (logs ?? []).reduce((t, l) => ({ kcal: t.kcal + l.kcal, protein: t.protein + l.protein, carbs: t.carbs + l.carbs, fat: t.fat + l.fat, fiber: t.fiber + l.fiber }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }), [logs]);
@@ -330,10 +403,11 @@ export default function Eat() {
   const budget = g.kcal + burned;
   const left = budget - totals.kcal;
 
-  const addLog = async (draft: LogDraft) => {
-    const row = await save<FoodLog>('foodLogs', { ...draft, date });
+  const addLog = async (drafts: LogDraft | LogDraft[]) => {
+    const list = [drafts].flat();
+    const rows = await Promise.all(list.map((draft) => save<FoodLog>('foodLogs', { ...draft, date })));
     setAdding(undefined);
-    toast(`${draft.name} added`, () => void remove('foodLogs', row.id));
+    toast(list.length === 1 ? `${list[0].name} added` : `${list.length} foods added`, () => { rows.forEach((row) => void remove('foodLogs', row.id)); });
   };
 
   const copyMeal = async (meal: Meal) => {
@@ -346,7 +420,7 @@ export default function Eat() {
     <>
       <div className="page-head">
         <h1>Eat</h1>
-        <span className="small muted">{relativeDay(date)}</span>
+        <DateSwitch />
       </div>
       <div className="stack">
         <div className="card">
@@ -381,6 +455,7 @@ export default function Eat() {
                 <h2>{m.label}</h2>
                 <div className="row" style={{ gap: 6 }}>
                   {rows.length > 0 && <span className="small muted nowrap">{num(rows.reduce((t, r) => t + r.kcal, 0))} kcal</span>}
+                  {rows.length > 1 && <button className="btn ghost sm" aria-label={`Save ${m.label} as a meal`} onClick={() => setSavingMeal({ rows, label: m.label })}><Bookmark size={13} /> Save</button>}
                   {!rows.length && yest.length > 0 && <button className="btn ghost sm" onClick={() => copyMeal(m.key)}><Copy size={13} /> Copy previous day</button>}
                   <button className="btn sm" aria-label={`Add to ${m.label}`} onClick={() => setAdding(m.key)}><Plus size={14} /> Add</button>
                 </div>
@@ -407,12 +482,16 @@ export default function Eat() {
       </div>
       {adding && <FoodPicker meal={adding} onClose={() => setAdding(undefined)} onAdd={addLog} />}
       {editing && <EditLog log={editing} onClose={() => setEditing(undefined)} />}
+      {savingMeal && <SaveMealSheet rows={savingMeal.rows} label={savingMeal.label} onClose={() => setSavingMeal(undefined)} />}
     </>
   );
 }
 
 function EditLog({ log, onClose }: { log: FoodLog; onClose: () => void }) {
   const { toast } = useToast();
+  const { all } = useFoods();
+  const [changing, setChanging] = useState(false);
+  const food = useMemo(() => all.find((f) => f.id === log.foodId) ?? foodFromLog(log), [all, log]);
   const [kcal, setKcal] = useState<number | undefined>(log.kcal);
   const [protein, setProtein] = useState<number | undefined>(log.protein);
   const [carbs, setCarbs] = useState<number | undefined>(log.carbs);
@@ -430,7 +509,10 @@ function EditLog({ log, onClose }: { log: FoodLog; onClose: () => void }) {
       </>
     }>
       <div className="stack">
-        <div className="small muted">{log.amount}</div>
+        <div className="row between">
+          <span className="small muted">{log.amount}</span>
+          {food && <button className="btn sm" onClick={() => setChanging(true)}>Change amount</button>}
+        </div>
         <Field label="Meal"><Segmented value={meal} onChange={setMeal} options={MEALS.map((m) => ({ value: m.key, label: m.label }))} /></Field>
         <div className="grid two">
           <Field label="Calories"><NumInput value={kcal} onChange={setKcal} /></Field>
@@ -439,6 +521,10 @@ function EditLog({ log, onClose }: { log: FoodLog; onClose: () => void }) {
           <Field label="Fat (g)"><NumInput value={fat} onChange={setFat} /></Field>
         </div>
       </div>
+      {changing && food && (
+        <AmountSheet food={food} meal={log.meal} saveLabel="Save" initial={log.qty && log.unitKey ? { qty: log.qty, unitKey: log.unitKey } : log.grams ? { qty: Math.round(log.grams), unitKey: 'g' } : undefined}
+          onClose={() => setChanging(false)} onAdd={async (d) => { await save<FoodLog>('foodLogs', { ...log, ...d }); onClose(); }} />
+      )}
     </Sheet>
   );
 }

@@ -231,7 +231,7 @@ function PlanSheet({ date, plan, onClose }: { date: string; plan?: Plan; onClose
           <button className="btn danger" onClick={async () => { await remove('plans', plan.id); toast('Plan deleted'); onClose(); }}><Trash2 size={15} /> {plan.weekdays ? 'Delete all repeats' : 'Delete'}</button>
         )}
       </div>
-      {picking && <FoodPicker meal={mealForNow()} title="Add food to plan" onClose={() => setPicking(false)} onAdd={(d: LogDraft) => { setMeals([...meals, d as PlanMealItem]); setPicking(false); }} />}
+      {picking && <FoodPicker meal={mealForNow()} title="Add food to plan" onClose={() => setPicking(false)} onAdd={(d: LogDraft | LogDraft[]) => { setMeals([...meals, ...([d].flat() as PlanMealItem[])]); setPicking(false); }} />}
     </Sheet>
   );
 }

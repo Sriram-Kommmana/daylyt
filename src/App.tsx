@@ -146,6 +146,8 @@ function Account({ uid }: { uid: string }) {
 
 function Gate() {
   const user = useUser();
+  // Local UI testing only: `vite --mode uitest`. import.meta.env.DEV removes this from real builds.
+  if (import.meta.env.DEV && import.meta.env.VITE_SKIP_AUTH === '1') return <Shell />;
   if (!isConfigured) return <main className="onboard"><h1>Daylyt isn't connected to its database yet.</h1></main>;
   if (user === undefined) return null;
   if (!user) return <SignIn />;

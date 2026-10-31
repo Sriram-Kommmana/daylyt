@@ -12,7 +12,7 @@ You sign in, and your data is saved to a database, so clearing your browser or c
 |---|---|
 | **Today** | Day score, streaks, today's plan, and quick logging for everything |
 | **Train** | Search about 990 exercises and log sets and reps in a few taps; live workouts with a rest timer; routines; ready-made programs; personal records and progress charts; calorie estimates |
-| **Eat** | About 7,600 built-in foods, including Indian dishes; packaged foods and barcodes through Open Food Facts; macros; custom foods; quick add; copy from the previous day |
+| **Eat** | About 7,600 built-in foods, including Indian dishes; enter any amount in grams, ml, cups, katori, bowls and more; saved meals; packaged foods and barcodes through Open Food Facts; macros; custom foods; quick add; copy from the previous day |
 | **Plan** | Weekly planner with repeating workouts, meals and events; calendar export for reminders; tasks; habits; focus timer |
 | **Body** | Water, sleep with quality and schedule, steps, weight with a 7-day average, mood and notes |
 | **Stats** | Trends for 7, 30 or 90 days or a year; consistency calendar; streaks; sets per muscle; milestones; insights from your own patterns |
@@ -89,6 +89,8 @@ npm test
 ```bash
 npm run build
 ```
+
+To try the interface without signing in, run `npx vite --mode uitest`. This works only in development; real builds always require sign-in.
 
 To change the database rules, edit `firestore.rules`, then:
 

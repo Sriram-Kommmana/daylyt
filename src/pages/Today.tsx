@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, CloudOff, Droplet, Dumbbell, Flame, Footprints, ListTodo, Moon, NotebookPen, Plus, Scale, Settings as Gear, Target, Timer, Utensils,
 } from 'lucide-react';
-import { CheckBox, DayRing, Field, METRIC_COLORS, Progress, useToast } from '../components/ui';
+import { CheckBox, DayRing, Field, LiveText, METRIC_COLORS, Progress, useToast } from '../components/ui';
+import { DatePick } from '../components/DateSwitch';
 import { useSelectedDate } from '../App';
 import { useSyncStatus } from '../lib/cloud';
 import { allAlive, db, onDate, remove, save, useLive, useSettings, useStreakDays, useSummaries } from '../lib/db';
@@ -58,6 +59,7 @@ export default function Today() {
           <h1>{relativeDay(date)}</h1>
         </div>
         {date !== now && <button className="btn sm" onClick={() => setDate(now)}>Back to today</button>}
+        <DatePick />
         {sync.pending > 0 && (sync.state === 'offline' || sync.state === 'error') && (
           <Link to="/settings" className="icon-btn" aria-label={`${sync.pending} changes waiting to save`} title="Changes are waiting to save to your account"><CloudOff size={19} /></Link>
         )}
@@ -319,8 +321,13 @@ function BodyCard({ date, unit, onLog }: { date: string; unit: 'kg' | 'lb'; onLo
 }
 
 function JournalCard({ date }: { date: string }) {
-  const entry = useLive(() => db.journal.get(`journal:${date}`), [date]);
-  const row = entry && !entry.deleted ? entry : undefined;
+  const [loaded, setLoaded] = useState<string>();
+  const entry = useLive(async () => {
+    const found = await db.journal.get(`journal:${date}`);
+    setLoaded(date);
+    return found;
+  }, [date]);
+  const row = entry && !entry.deleted && entry.date === date ? entry : undefined;
   const update = (patch: Partial<JournalEntry>) => save<JournalEntry>('journal', { id: `journal:${date}`, date, mood: row?.mood, energy: row?.energy, note: row?.note, ...patch });
   return (
     <Tile title="Mood and notes" icon={<NotebookPen size={15} />} color="var(--ink-2)">
@@ -329,7 +336,10 @@ function JournalCard({ date }: { date: string }) {
           {MOODS.map((m, i) => <button key={m} aria-pressed={row?.mood === i + 1} className={row?.mood === i + 1 ? 'on' : ''} onClick={() => update({ mood: row?.mood === i + 1 ? undefined : i + 1 })}>{m}</button>)}
         </div>
         <Field label={<span className="sr">Note</span>}>
-          <textarea key={date} className="input" style={{ minHeight: 56 }} defaultValue={row?.note ?? ''} placeholder="How did today go?" onBlur={(e) => { if (e.target.value !== (row?.note ?? '')) void update({ note: e.target.value }); }} />
+          {/* Waits for the saved note: an empty box that later blurred would have erased it. */}
+          {loaded === date
+            ? <LiveText key={date} multiline className="input" style={{ minHeight: 56 }} value={row?.note ?? ''} placeholder="How did today go?" onChange={(note) => { void update({ note }); }} />
+            : <textarea className="input" style={{ minHeight: 56 }} disabled placeholder="How did today go?" />}
         </Field>
       </div>
     </Tile>

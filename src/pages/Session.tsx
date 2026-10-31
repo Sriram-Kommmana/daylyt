@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ChevronLeft, MoreHorizontal, Plus, Repeat, Save, Timer, Trash2, Trophy } from 'lucide-react';
-import { CheckBox, Field, NumInput, Sheet, useToast } from '../components/ui';
+import { CheckBox, Field, LiveText, NumInput, Sheet, useToast } from '../components/ui';
 import { ExercisePicker } from '../components/exercises';
 import { useSelectedDate } from '../App';
 import { allAlive, db, remove, save, useLive, useSettings } from '../lib/db';
@@ -129,8 +129,8 @@ export default function Session() {
       <div className="stack">
         <div className="card">
           <div className="row between">
-            <input className="input" style={{ border: 0, padding: 0, minHeight: 0, fontFamily: 'var(--display)', fontWeight: 700, fontSize: 21, background: 'transparent', boxShadow: 'none' }}
-              aria-label="Workout name" value={workout.name} placeholder={workoutTitle(workout)} onChange={(e) => update({ name: e.target.value })} />
+            <LiveText className="input" style={{ border: 0, padding: 0, minHeight: 0, fontFamily: 'var(--display)', fontWeight: 700, fontSize: 21, background: 'transparent', boxShadow: 'none' }}
+              aria-label="Workout name" value={workout.name} placeholder={workoutTitle(workout)} onChange={(name) => update({ name })} />
             <button className="icon-btn filled" aria-label="More options" onClick={() => setMore(true)}><MoreHorizontal size={18} /></button>
           </div>
           <div className="row wrap small muted" style={{ gap: '2px 14px', marginTop: 6 }}>
@@ -184,7 +184,7 @@ export default function Session() {
       {menu !== null && workout.exercises[menu] && (
         <Sheet title={workout.exercises[menu].name} onClose={() => setMenu(null)}>
           <div className="stack tight">
-            <Field label="Note"><input className="input" value={workout.exercises[menu].note ?? ''} placeholder="Seat height, grip, how it felt…" onChange={(e) => setExercise(menu, { ...workout.exercises[menu], note: e.target.value })} /></Field>
+            <Field label="Note"><LiveText className="input" value={workout.exercises[menu].note ?? ''} placeholder="Seat height, grip, how it felt…" onChange={(note) => setExercise(menu, { ...workout.exercises[menu], note })} /></Field>
             <div className="row" style={{ marginTop: 6 }}>
               <button className="btn grow" disabled={menu === 0} onClick={() => move(menu, -1)}><ArrowUp size={15} /> Move up</button>
               <button className="btn grow" disabled={menu === workout.exercises.length - 1} onClick={() => move(menu, 1)}><ArrowDown size={15} /> Move down</button>
@@ -217,7 +217,7 @@ function MoreSheet({ workout, unitKcal, onClose, onUpdate, onRepeat, onDelete }:
           <Field label="Calories burned" hint="Blank uses the estimate"><NumInput value={workout.kcalOverride} placeholder={String(unitKcal)} onChange={(v) => onUpdate({ kcalOverride: v != null ? roundTo(v, 1) : undefined })} /></Field>
         </div>
         <Field label="Date"><input className="input" type="date" value={workout.date} onChange={(e) => { if (e.target.value) onUpdate({ date: e.target.value }); }} /></Field>
-        <Field label="Notes"><textarea className="input" value={workout.note ?? ''} onChange={(e) => onUpdate({ note: e.target.value })} /></Field>
+        <Field label="Notes"><LiveText multiline className="input" value={workout.note ?? ''} onChange={(note) => onUpdate({ note })} /></Field>
         <Field label="Save as a routine">
           <div className="row">
             <input className="input" value={routineName} onChange={(e) => setRoutineName(e.target.value)} />

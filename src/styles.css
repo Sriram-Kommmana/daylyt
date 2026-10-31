@@ -436,3 +436,15 @@ button.item:hover, a.item:hover { background: color-mix(in srgb, var(--surface-2
 
 /* Keep the last controls reachable above a floating timer. */
 .frame:has(.dock) .main { padding-bottom: calc(160px + var(--safe-b)); }
+
+/* ---- Food amounts ---- */
+.amount-row { display: flex; align-items: center; gap: 10px; }
+.amount-row .stepper { flex: 1; min-width: 0; }
+.amount-unit { max-width: 45%; font-weight: 650; }
+
+/* ---- Date switcher ---- */
+.date-switch { display: inline-flex; align-items: center; flex: none; }
+.date-pick { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 30px; min-height: 32px; padding: 0 6px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); white-space: nowrap; border-radius: 9px; cursor: pointer; }
+.date-pick:hover { background: var(--surface-2); }
+.date-pick input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.date-pick input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; cursor: pointer; }

@@ -3,7 +3,7 @@ import { withExtras } from '../data/extraExercises';
 import { CURATED_FOODS } from '../data/foods';
 import { allAlive, db, useLive } from './db';
 import { index, squash, type Searchable } from './search';
-import type { CustomExercise, CustomFood, Exercise, Food, Serving } from './types';
+import type { CustomExercise, CustomFood, Exercise, Food } from './types';
 
 const url = (p: string) => `${import.meta.env.BASE_URL}data/${p}`;
 
@@ -74,12 +74,6 @@ export function useFoods() {
 }
 
 export const exerciseImage = (path: string) => `https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/${path}`;
-
-export const servingsOf = (f: Food): Serving[] => {
-  const out = [...f.servings];
-  if (!out.some((s) => s.grams === 100)) out.push({ label: '100 g', grams: 100 });
-  return out;
-};
 
 // ---- Open Food Facts: free, no key, covers packaged products worldwide, including Indian brands. ----
 

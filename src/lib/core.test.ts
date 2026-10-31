@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { fromOff } from './catalog';
+import { convertQty, describeAmount, foodFromLog, portionUnits, unitFromServing } from './portions';
 import { CURATED_FOODS } from '../data/foods';
 import { EXTRA_EXERCISES, withExtras } from '../data/extraExercises';
 import { PROGRAMS } from '../data/programs';
@@ -220,6 +221,77 @@ describe('packaged food data', () => {
   it('skips products with no name or no nutrition', () => {
     expect(fromOff({ code: '1', nutriments: { 'energy-kcal_100g': 100 } })).toBeNull();
     expect(fromOff({ ...base, nutriments: {} })).toBeNull();
+  });
+});
+
+describe('food amounts', () => {
+  const units = (label: string, grams: number) => portionUnits({ servings: [{ label, grams }] });
+  const find = (list: ReturnType<typeof units>, key: string) => list.find((u) => u.key === key)!;
+
+  it('reads a serving into the unit it describes', () => {
+    expect(unitFromServing('1 roti', 40)).toMatchObject({ label: 'roti', grams: 40, start: 1 });
+    expect(unitFromServing('2 eggs', 110)).toMatchObject({ label: 'egg', grams: 55, start: 2 });
+    expect(unitFromServing('10 nuts', 12)).toMatchObject({ label: 'nut', start: 10 });
+    expect(unitFromServing('1/2 cup', 40)).toMatchObject({ label: 'cup', grams: 80, start: 0.5 });
+    expect(unitFromServing('3 cups', 25)?.start).toBe(3);
+    expect(unitFromServing('1 cup, chopped or diced', 140)).toMatchObject({ label: 'cup, chopped or diced', grams: 140 });
+    expect(unitFromServing('1 peg (30 ml)', 30)?.label).toBe('peg (30 ml)');
+    expect(unitFromServing('2 slices', 70)).toMatchObject({ label: 'slice', grams: 35 });
+    expect(unitFromServing('1 glass', 250)?.label).toBe('glass');
+  });
+  it('treats a bare weight as a serving, and skips 100 g, which the g unit already covers', () => {
+    expect(unitFromServing('30 g', 30)).toMatchObject({ label: 'serving', grams: 30, start: 1 });
+    expect(unitFromServing('15g', 15)).toMatchObject({ label: 'serving', grams: 15 });
+    expect(unitFromServing('100 g', 100)).toBeNull();
+    expect(unitFromServing('1 serving', 0)).toBeNull();
+  });
+  it('starts on the same amount the search result showed', () => {
+    const first = units('2 eggs', 110)[0];
+    expect(first.start * first.grams).toBe(110);
+    const nuts = units('10 nuts', 12)[0];
+    expect(nuts.start * nuts.grams).toBeCloseTo(12);
+  });
+  it('always offers grams, ml and household measures, even for a food with no servings', () => {
+    const keys = portionUnits({ servings: [] }).map((u) => u.key);
+    for (const k of ['g', 'ml', 'oz', 'katori', 'bowl', 'plate', 'cup', 'glass', 'tbsp', 'tsp']) expect(keys).toContain(k);
+    expect(keys[0]).toBe('g');
+  });
+  it("prefers a food's real cup over the household estimate", () => {
+    const list = units('1 cup', 160);
+    expect(list.filter((u) => u.label === 'cup')).toHaveLength(1);
+    expect(list[0]).toMatchObject({ label: 'cup', grams: 160 });
+    expect(list[0].approx).toBeUndefined();
+    expect(units('1 cup, chopped', 140).some((u) => u.key === 'cup')).toBe(false);
+  });
+  it('writes amounts the way people say them, with the weight alongside', () => {
+    const list = units('1 roti', 40);
+    expect(describeAmount(2, list[0])).toBe('2 rotis (80 g)');
+    expect(describeAmount(1, list[0])).toBe('1 roti (40 g)');
+    expect(describeAmount(1.5, list[0])).toBe('1.5 rotis (60 g)');
+    expect(describeAmount(150, find(list, 'g'))).toBe('150 g');
+    expect(describeAmount(2, find(list, 'glass'))).toBe('2 glasses (500 g)');
+    expect(describeAmount(2, find(list, 'katori'))).toBe('2 katori (300 g)');
+    expect(describeAmount(3, find(list, 'tbsp'))).toBe('3 tbsp (45 g)');
+  });
+  it('keeps the amount when switching between weights, and resets for counts', () => {
+    const list = units('1 roti', 40);
+    expect(convertQty(2, list[0], find(list, 'g'))).toBe(80);
+    expect(convertQty(80, find(list, 'g'), find(list, 'oz'))).toBe(2.8);
+    expect(convertQty(80, find(list, 'g'), list[0])).toBe(1);
+    expect(convertQty(0, list[0], find(list, 'g'))).toBe(100);
+  });
+  it('rebuilds a food from a log so its amount can change, keeping nutrition proportional', () => {
+    const food = foodFromLog({ name: 'Rice', grams: 200, kcal: 260, protein: 5, carbs: 56, fat: 1, fiber: 1 })!;
+    expect(food.kcal).toBe(130);
+    expect(food.protein).toBe(2.5);
+    expect(foodFromLog({ name: 'Quick add', kcal: 300, protein: 0, carbs: 0, fat: 0, fiber: 0 })).toBeNull();
+  });
+  it('can read every serving in the built-in foods', () => {
+    for (const f of CURATED_FOODS) {
+      const first = portionUnits(f)[0];
+      expect(first.grams, f.name).toBeGreaterThan(0);
+      if (f.servings[0].grams !== 100) expect(first.start * first.grams, f.name).toBeCloseTo(f.servings[0].grams, 1);
+    }
   });
 });
 

@@ -6,7 +6,7 @@ import { suggestGoals } from './calc';
 import { summarize, type RangeRows } from './summary';
 import type {
   ActivityLog, BodyLog, CustomExercise, CustomFood, FocusLog, FoodLog, Habit, HabitLog, JournalEntry, Plan, Rec, Routine,
-  Settings, SleepLog, Task, WaterLog, Workout,
+  SavedMeal, Settings, SleepLog, Task, WaterLog, Workout,
 } from './types';
 
 class DaylytDB extends Dexie {
@@ -26,6 +26,7 @@ class DaylytDB extends Dexie {
   focus!: Table<FocusLog, string>;
   plans!: Table<Plan, string>;
   journal!: Table<JournalEntry, string>;
+  savedMeals!: Table<SavedMeal, string>;
   /** Rows changed here that the database hasn't confirmed yet. */
   outbox!: Table<OutboxItem, string>;
   meta!: Table<{ key: string; value: unknown }, string>;
@@ -51,6 +52,7 @@ class DaylytDB extends Dexie {
       journal: 'id,date',
     });
     this.version(2).stores({ outbox: 'key', meta: 'key' });
+    this.version(3).stores({ savedMeals: 'id' });
   }
 }
 
@@ -64,7 +66,7 @@ export const db = new DaylytDB();
 
 export const TABLES = [
   'settings', 'workouts', 'routines', 'customExercises', 'customFoods', 'foodLogs', 'water', 'sleep', 'activity', 'body',
-  'habits', 'habitLogs', 'tasks', 'focus', 'plans', 'journal',
+  'habits', 'habitLogs', 'tasks', 'focus', 'plans', 'journal', 'savedMeals',
 ] as const;
 export type TableName = (typeof TABLES)[number];
 

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ChevronRight, ClipboardList, Dumbbell, History, Play, Plus, Search, Sparkles, Trophy } from 'lucide-react';
 import { Empty, Segmented, Sheet, useToast } from '../components/ui';
 import { ExercisePicker, QuickLogSheet, describeSets } from '../components/exercises';
+import { DateSwitch } from '../components/DateSwitch';
 import { useSelectedDate } from '../App';
 import { PROGRAMS, type Program } from '../data/programs';
 import { useExercises } from '../lib/catalog';
@@ -26,7 +27,9 @@ export default function Train() {
   const workouts = useLive(() => allAlive(db.workouts));
   const routines = useLive(() => allAlive(db.routines));
   const sorted = useMemo(() => [...(workouts ?? [])].sort((a, b) => b.date.localeCompare(a.date) || b.updatedAt - a.updatedAt), [workouts]);
-  const onDay = sorted.filter((w) => w.date === date);
+  const onDay = sorted.filter((w) => w.date === date && w.exercises.length > 0);
+  // A workout opened and left empty isn't history.
+  const past = sorted.filter((w) => w.exercises.some((e) => e.sets.some((s) => s.done)) || w.kcalOverride != null);
   const unit = settings?.weightUnit ?? 'kg';
   const kg = settings?.weightKg ?? 70;
 
@@ -39,6 +42,7 @@ export default function Train() {
     <>
       <div className="page-head">
         <h1>Train</h1>
+        <DateSwitch />
         <Link to="/train/library" className="btn sm">Exercises</Link>
       </div>
       <div className="stack">
@@ -97,9 +101,9 @@ export default function Train() {
         )}
 
         {tab === 'history' && (
-          sorted.length ? (
+          past.length ? (
             <div className="card flush list">
-              {sorted.slice(0, 100).map((w) => (
+              {past.slice(0, 100).map((w) => (
                 <Link key={w.id} to={`/train/session/${w.id}`} className="item">
                   <span className="grow">
                     <span className="bold clip" style={{ display: 'block' }}>{workoutTitle(w)}</span>

@@ -39,8 +39,8 @@ export function Field({ label, children, hint }: { label: ReactNode; children: R
 }
 
 /** Numeric input that holds its own text, so typing "1." or clearing the box doesn't fight the value. */
-export function NumInput({ value, onChange, className = 'input', placeholder, step, min = 0, label }: {
-  value: number | undefined; onChange: (v: number | undefined) => void; className?: string; placeholder?: string; step?: number; min?: number; label?: string;
+export function NumInput({ value, onChange, className = 'input', placeholder, step, min = 0, label, autoFocus }: {
+  value: number | undefined; onChange: (v: number | undefined) => void; className?: string; placeholder?: string; step?: number; min?: number; label?: string; autoFocus?: boolean;
 }) {
   const [text, setText] = useState(value == null ? '' : String(value));
   const last = useRef(value);
@@ -55,6 +55,7 @@ export function NumInput({ value, onChange, className = 'input', placeholder, st
       type="number"
       inputMode="decimal"
       aria-label={label}
+      data-autofocus={autoFocus ? '' : undefined}
       value={text}
       min={min}
       step={step ?? 'any'}
@@ -70,12 +71,32 @@ export function NumInput({ value, onChange, className = 'input', placeholder, st
   );
 }
 
-export function Stepper({ value, onChange, step = 1, min = 0, label }: { value: number | undefined; onChange: (v: number | undefined) => void; step?: number; min?: number; label: string }) {
+/**
+ * Text that saves as you type. Saved values come back asynchronously, so an input bound straight
+ * to them drops characters and jumps the cursor; this keeps its own text while it has focus.
+ */
+export function LiveText({ value, onChange, multiline, ...rest }: {
+  value: string; onChange: (v: string) => void; multiline?: boolean; className?: string; placeholder?: string; style?: CSSProperties; 'aria-label'?: string;
+}) {
+  const [text, setText] = useState(value);
+  const focused = useRef(false);
+  useEffect(() => { if (!focused.current) setText(value); }, [value]);
+  const props = {
+    value: text,
+    onFocus: () => { focused.current = true; },
+    onBlur: () => { focused.current = false; },
+    onChange: (e: { target: { value: string } }) => { setText(e.target.value); onChange(e.target.value); },
+    ...rest,
+  };
+  return multiline ? <textarea {...props} /> : <input {...props} />;
+}
+
+export function Stepper({ value, onChange, step = 1, min = 0, label, autoFocus }: { value: number | undefined; onChange: (v: number | undefined) => void; step?: number; min?: number; label: string; autoFocus?: boolean }) {
   const bump = (d: number) => onChange(Math.max(min, +((value ?? 0) + d).toFixed(2)));
   return (
     <div className="stepper">
       <button type="button" onClick={() => bump(-step)} aria-label={`Decrease ${label}`}><Minus size={17} /></button>
-      <NumInput className="" value={value} onChange={onChange} min={min} label={label} />
+      <NumInput className="" value={value} onChange={onChange} min={min} label={label} autoFocus={autoFocus} />
       <button type="button" onClick={() => bump(step)} aria-label={`Increase ${label}`}><Plus size={17} /></button>
     </div>
   );
